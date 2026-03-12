@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>业务动态共享中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        .card-shadow { box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <div id="app" v-cloak class="max-w-6xl mx-auto p-4 md:p-8">
+        <header class="mb-10 text-center">
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight">INSIGHT HUB<span class="text-indigo-600">.</span></h1>
+            <p class="text-slate-500 mt-2 font-medium">区域与话题互动分享平台</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-3xl card-shadow mb-8 border border-white flex flex-wrap gap-8 items-start">
+            <div class="flex-1 min-w-[250px]">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Geographic Region / 区域</label>
+                <div class="flex flex-wrap gap-2">
+                    <button v-for="r in ['全部', '美国', '亚太']" @click="filter.region = r" 
+                        :class="['px-5 py-2 rounded-xl text-sm font-semibold transition-all', filter.region === r ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200']">
+                        {{ r }}
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 min-w-[250px]">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Topic Category / 话题</label>
+                <div class="flex flex-wrap gap-2">
+                    <button v-for="t in ['全部', '新闻', '社区活动', '竞品动态']" @click="filter.topic = t" 
+                        :class="['px-5 py-2 rounded-xl text-sm font-semibold transition-all', filter.topic === t ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200']">
+                        {{ t }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="error" class="bg-red-50 text-red-600 p-6 rounded-2xl border border-red-100 mb-8">
+            <p class="font-bold mb-1">⚠️ JSON 数据读取异常</p>
+            <p class="text-sm opacity-80">{{ error }}。请检查 data.json 是否少了逗号或引号。</p>
+        </div>
+
+        <div v-if="loading" class="flex flex-col items-center py-20">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+            <p class="text-slate-400 font-medium">正在获取最新动态...</p>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="item in filteredItems" :key="item.id" class="bg-white p-6 rounded-3xl border border-slate-100 card-shadow hover:-translate-y-1 transition-all duration-300 group">
+                <div class="flex gap-2 mb-4">
+                    <span class="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-900 text-white">{{ item.region }}</span>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">{{ item.topic }}</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-3 group-hover:text-indigo-600 transition-colors">{{ item.title }}</h3>
+                <p class="text-slate-500 text-sm leading-relaxed mb-6">{{ item.content }}</p>
+                <div class="pt-5 border-t border-slate-50 mt-auto">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-[10px] font-black text-amber-600 uppercase tracking-tighter">Value / 业务价值</span>
+                    </div>
+                    <p class="text-xs font-semibold text-amber-900 leading-snug bg-amber-50/50 p-3 rounded-2xl border border-amber-100/30">
+                        💡 {{ item.value }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="!loading && filteredItems.length === 0" class="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+            <p class="text-slate-400">该筛选条件下暂无内容</p>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        createApp({
+            setup() {
+                const items = ref([]);
+                const loading = ref(true);
+                const error = ref(null);
+                const filter = ref({ region: '全部', topic: '全部' });
+
+                onMounted(async () => {
+                    try {
+                        // 增加时间戳防止浏览器缓存旧数据
+                        const res = await fetch(`data.json?t=${Date.now()}`);
+                        if (!res.ok) throw new Error('无法连接到数据库文件');
+                        items.value = await res.json();
+                    } catch (e) {
+                        error.value = e.message;
+                        console.error("数据加载失败:", e);
+                    } finally {
+                        loading.value = false;
+                    }
+                });
+
+                const filteredItems = computed(() => {
+                    return items.value.filter(item => {
+                        const rMatch = filter.value.region === '全部' || item.region === filter.value.region;
+                        const tMatch = filter.value.topic === '全部' || item.topic === filter.value.topic;
+                        return rMatch && tMatch;
+                    });
+                });
+
+                return { items, filter, filteredItems, loading, error };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
